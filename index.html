@@ -1,0 +1,341 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+    <title>手搖飲大戰 2026 🥤</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://unpkg.com/react@18/umd/react.development.js"></script>
+    <script src="https://unpkg.com/react-dom@18/umd/react-dom.development.js"></script>
+    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;700;900&display=swap');
+        :root { --safe-top: env(safe-area-inset-top, 0px); }
+        body { 
+            font-family: 'Noto Sans TC', sans-serif; 
+            -webkit-tap-highlight-color: transparent; 
+            overscroll-behavior-y: contain;
+            background-color: #f9fafb;
+        }
+        .no-scrollbar::-webkit-scrollbar { display: none; }
+        .safe-pt { padding-top: calc(1.5rem + var(--safe-top)); }
+        .animate-pop { animation: pop 0.35s cubic-bezier(0.175, 0.885, 0.32, 1.275); }
+        @keyframes pop { 0% { transform: scale(0.96); opacity: 0; } 100% { transform: scale(1); opacity: 1; } }
+        .btn-active:active { transform: scale(0.92); filter: brightness(0.9); }
+        .gold-border {
+            border: 3px solid transparent;
+            background-image: linear-gradient(white, white), radial-gradient(circle at top left, #facc15, #eab308);
+            background-origin: border-box;
+            background-clip: padding-box, border-box;
+        }
+    </style>
+</head>
+<body class="text-gray-800">
+    <div id="root"></div>
+
+    <script type="module">
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
+        import { getAuth, signInAnonymously } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
+        import { initializeFirestore, collection, doc, setDoc, onSnapshot, addDoc, deleteDoc } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+
+        // --- 欸比注意！如果你要發布成獨立網站，請把下方的 config 換成你自己的 Firebase Config ---
+        // 你可以在 Firebase Console -> 專案設定 -> 你的應用程式 中找到這段 JSON
+        const firebaseConfig = {
+        apiKey: "AIzaSyBbMEOuJeOkqj3cksCqLbYTegRSxXG7Z8g",
+        authDomain: "drink-ca906.firebaseapp.com",
+        projectId: "drink-ca906",
+        storageBucket: "drink-ca906.firebasestorage.app",
+        messagingSenderId: "102325799308",
+        appId: "1:102325799308:web:8a4cabc8c0d622a3efeea9",
+        measurementId: "G-ESTFV831NZ"
+        };
+        const id = 'drink-tracker-battle-2026';
+
+        if (config.apiKey && config.apiKey !== "AIzaSyAGLiEBZHVF_SejFPQx2POpIFOGrVw3WsI") {
+            const app = initializeApp(config);
+            const auth = getAuth(app);
+            const db = initializeFirestore(app, { experimentalForceLongPolling: true });
+            window.fb = { db, auth, appId: id, collection, doc, setDoc, onSnapshot, addDoc, deleteDoc };
+        } else {
+            console.warn("尚未配置 Firebase Config，目前僅能使用預覽功能。");
+            // 為了讓你在沒有設定時也能看到畫面，這裡做一個 mock
+            window.fb = null;
+        }
+    </script>
+
+    <script type="text/babel">
+        const { useState, useEffect, useMemo, useRef } = React;
+
+        const ICE_LEVELS = ['正常冰', '少冰', '微冰', '去冰', '完全去冰','熱'];
+        const SWEETNESS_LEVELS = ['正常糖', '七分糖', '半糖', '三分糖', '微糖', '無糖'];
+        const AVATAR_OPTIONS = ['🥤', '🧋', '🎧', '🦸‍♀️', '🐱', '🐶', '🦊', '🐻', '🐨', '🐯', '🐸', '🦄', '🌈', '🔥', '✨', '🍀', '🍕', '🍰', '🎸', '🎮'];
+
+        const THEME_MAP = {
+            pink: { primary: 'bg-pink-400', secondary: 'bg-pink-50', text: 'text-pink-600', accent: 'bg-pink-500', light: 'bg-pink-100' },
+            yellow: { primary: 'bg-amber-400', secondary: 'bg-amber-50', text: 'text-amber-600', accent: 'bg-amber-500', light: 'bg-amber-100' },
+            blue: { primary: 'bg-sky-400', secondary: 'bg-sky-50', text: 'text-sky-600', accent: 'bg-sky-500', light: 'bg-sky-100' },
+            green: { primary: 'bg-emerald-400', secondary: 'bg-emerald-50', text: 'text-emerald-600', accent: 'bg-emerald-500', light: 'bg-emerald-100' },
+            purple: { primary: 'bg-purple-400', secondary: 'bg-purple-50', text: 'text-purple-600', accent: 'bg-purple-500', light: 'bg-purple-100' },
+            orange: { primary: 'bg-orange-400', secondary: 'bg-orange-50', text: 'text-orange-600', accent: 'bg-orange-500', light: 'bg-orange-100' },
+            indigo: { primary: 'bg-indigo-400', secondary: 'bg-indigo-50', text: 'text-indigo-600', accent: 'bg-indigo-500', light: 'bg-indigo-100' }
+        };
+
+        const Icon = ({ name, size = 18 }) => {
+            const icons = {
+                Calendar: "📅", List: "📜", Stats: "📊", Battle: "⚔️", 
+                User: "👤", Plus: "➕", Trash: "🗑️", X: "❌", 
+                Flame: "🔥", Wallet: "💰", Note: "📝", Sparkles: "✨", 
+                Logout: "🚪", Medal: "🥇", Cup: "🥤"
+            };
+            return <span style={{ fontSize: size + 'px' }} className="mr-1">{icons[name] || ''}</span>;
+        };
+
+        function App() {
+            const [view, setView] = useState('login'); 
+            const [activeUserId, setActiveUserId] = useState(null);
+            const [users, setUsers] = useState([
+                { id: 'abby', name: 'Abby', color: 'yellow', icon: '🎧' },
+                { id: 'carey', name: 'Carey', color: 'pink', icon: '🦸‍♀️' }
+            ]);
+            const [logs, setLogs] = useState([]);
+            const [currentDate, setCurrentDate] = useState(new Date(2026, 0, 1));
+            const [isModalOpen, setIsModalOpen] = useState(false);
+            const [selectedDate, setSelectedDate] = useState(null);
+            const [isAiCalculating, setIsAiCalculating] = useState(false);
+            const [isAddingUser, setIsAddingUser] = useState(false);
+            const [newUserName, setNewUserName] = useState('');
+            const [newUserColor, setNewUserColor] = useState('blue');
+            const [newUserIcon, setNewUserIcon] = useState('🥤');
+            const [statsRange, setStatsRange] = useState({ start: '2026-01-01', end: '2026-12-31' });
+            const [formData, setFormData] = useState({ store: '', item: '', ice: '微冰', sweetness: '微糖', price: '', calories: '', note: '' });
+
+            useEffect(() => {
+                const init = setInterval(() => {
+                    if (window.fb) {
+                        clearInterval(init);
+                        const { auth, db, appId, collection, onSnapshot } = window.fb;
+                        signInAnonymously(auth).then(() => {
+                            onSnapshot(collection(db, 'artifacts', appId, 'public', 'data', 'logs'), snap => {
+                                setLogs(snap.docs.map(d => ({ id: d.id, ...d.data() })));
+                            });
+                            onSnapshot(collection(db, 'artifacts', appId, 'public', 'data', 'users'), snap => {
+                                if (snap.docs.length > 0) {
+                                    const custom = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+                                    setUsers(prev => {
+                                        const base = prev.filter(u => u.id === 'abby' || u.id === 'carey');
+                                        const ids = new Set(base.map(u => u.id));
+                                        return [...base, ...custom.filter(u => !ids.has(u.id))];
+                                    });
+                                }
+                            });
+                        });
+                    }
+                }, 500);
+                return () => clearInterval(init);
+            }, []);
+
+            const activeUser = users.find(u => u.id === activeUserId);
+            const theme = activeUser ? (THEME_MAP[activeUser.color] || THEME_MAP.yellow) : THEME_MAP.yellow;
+
+            const battleStats = useMemo(() => {
+                const results = users.map(u => {
+                    const f = logs.filter(l => l.userId === u.id && l.date >= statsRange.start && l.date <= statsRange.end);
+                    return {
+                        id: u.id, name: u.name, color: u.color, icon: u.icon,
+                        count: f.length,
+                        cost: f.reduce((a, b) => a + Number(b.price || 0), 0),
+                        calories: f.reduce((a, b) => a + Number(b.calories || 0), 0)
+                    };
+                });
+                return {
+                    countRank: [...results].sort((a,b) => b.count - a.count),
+                    costRank: [...results].sort((a,b) => b.cost - a.cost),
+                    calRank: [...results].sort((a,b) => b.calories - a.calories)
+                };
+            }, [logs, users, statsRange]);
+
+            const usedColors = users.map(u => u.color);
+            const usedIcons = users.map(u => u.icon);
+            const availableColors = Object.keys(THEME_MAP).filter(c => !usedColors.includes(c));
+            const availableIcons = AVATAR_OPTIONS.filter(i => !usedIcons.includes(i));
+
+            if (view === 'login' || !activeUserId) {
+                return (
+                    <div className="min-h-screen flex flex-col items-center justify-center p-8 bg-amber-50 animate-pop">
+                        <div className="text-center mb-10 safe-pt">
+                            <h1 className="text-4xl font-black text-amber-900 mb-3">🥤 我超愛喝手搖</h1>
+                            <p className="text-amber-700 font-medium">是誰要來紀錄罪惡感？</p>
+                        </div>
+                        <div className="grid grid-cols-2 gap-6 w-full max-w-sm">
+                            {users.map(u => (
+                                <button key={u.id} onClick={() => { setActiveUserId(u.id); setView('calendar'); }}
+                                    className={`aspect-square rounded-[2.5rem] flex flex-col items-center justify-center shadow-lg transition-all btn-active ${THEME_MAP[u.color]?.primary || 'bg-gray-400'} text-white`}>
+                                    <div className="text-5xl mb-2">{u.icon || '👤'}</div>
+                                    <span className="font-black text-lg">{u.name}</span>
+                                </button>
+                            ))}
+                            {availableColors.length > 0 && availableIcons.length > 0 && (
+                                <button onClick={() => {
+                                    setNewUserColor(availableColors[0]);
+                                    setNewUserIcon(availableIcons[0]);
+                                    setIsAddingUser(true);
+                                }}
+                                    className="aspect-square rounded-[2.5rem] flex flex-col items-center justify-center shadow-lg border-4 border-dashed border-amber-200 text-amber-300 active:border-amber-400">
+                                    <span className="text-4xl mb-1">+</span>
+                                    <span className="font-bold">新增戰友</span>
+                                </button>
+                            )}
+                        </div>
+                        {isAddingUser && (
+                            <div className="fixed inset-0 z-[600] bg-black/60 backdrop-blur-sm flex items-center justify-center p-6">
+                                <div className="bg-white rounded-[3rem] w-full max-w-sm p-8 shadow-2xl space-y-6 animate-pop max-h-[90vh] overflow-y-auto no-scrollbar">
+                                    <h3 className="text-2xl font-black text-center">加入手搖戰友</h3>
+                                    <div className="space-y-2">
+                                        <label className="text-xs font-bold text-gray-400 ml-2">選擇大名</label>
+                                        <input type="text" placeholder="你的稱呼" className="w-full p-4 bg-gray-50 rounded-2xl outline-none" value={newUserName} onChange={e => setNewUserName(e.target.value)} />
+                                    </div>
+                                    <div className="space-y-2">
+                                        <label className="text-xs font-bold text-gray-400 ml-2">選擇顏色</label>
+                                        <div className="flex flex-wrap gap-2 justify-center bg-gray-50 p-3 rounded-2xl">
+                                            {availableColors.map(c => (
+                                                <button key={c} onClick={() => setNewUserColor(c)} className={`w-8 h-8 rounded-full ${THEME_MAP[c].primary} ${newUserColor === c ? 'ring-4 ring-gray-300 scale-110' : 'opacity-60'}`} />
+                                            ))}
+                                        </div>
+                                    </div>
+                                    <div className="space-y-2">
+                                        <label className="text-xs font-bold text-gray-400 ml-2">選擇頭貼</label>
+                                        <div className="grid grid-cols-4 gap-2 bg-gray-50 p-3 rounded-2xl">
+                                            {availableIcons.map(a => (
+                                                <button key={a} onClick={() => setNewUserIcon(a)} className={`text-2xl p-2 rounded-xl ${newUserIcon === a ? 'bg-white shadow-sm scale-110' : 'opacity-40'}`}>{a}</button>
+                                            ))}
+                                        </div>
+                                    </div>
+                                    <div className="flex gap-2 pt-2">
+                                        <button onClick={() => setIsAddingUser(false)} className="flex-1 py-3 font-bold text-gray-400">取消</button>
+                                        <button onClick={async () => {
+                                            if (!newUserName || !window.fb) return;
+                                            const nid = `u_${Date.now()}`;
+                                            await window.fb.setDoc(window.fb.doc(window.fb.db, 'artifacts', window.fb.appId, 'public', 'data', 'users', nid), { id: nid, name: newUserName, color: newUserColor, icon: newUserIcon });
+                                            setNewUserName(''); setIsAddingUser(false);
+                                        }} className="flex-1 py-3 font-black bg-blue-500 text-white rounded-2xl">加入對決</button>
+                                    </div>
+                                </div>
+                            </div>
+                        )}
+                    </div>
+                );
+            }
+
+            return (
+                <div className={`min-h-screen ${theme.secondary} transition-colors duration-500 pb-24`}>
+                    <header className={`${theme.primary} safe-pt pb-14 px-8 rounded-b-[3.5rem] shadow-xl text-white relative`}>
+                        <div className="flex justify-between items-center max-w-xl mx-auto">
+                            <div className="flex items-center gap-3">
+                                <div className="text-4xl drop-shadow-md">{activeUser.icon}</div>
+                                <div><h1 className="text-2xl font-black">嗨，{activeUser.name} ✨</h1><p className="text-sm opacity-80">今天誰是手搖冠軍？</p></div>
+                            </div>
+                            <button onClick={() => setView('login')} className="bg-white/20 p-3 rounded-full backdrop-blur-md btn-active"><Icon name="Logout" /></button>
+                        </div>
+                    </header>
+                    <nav className="max-w-xl mx-auto px-6 -mt-7 relative z-10">
+                        <div className="bg-white rounded-[2rem] shadow-xl p-2 flex gap-1 border border-white/50">
+                            {['calendar', 'list', 'battle', 'stats'].map(t => (
+                                <button key={t} onClick={() => setView(t)} className={`flex-1 py-4 rounded-2xl font-black text-[10px] sm:text-xs transition-all ${view === t ? `${theme.primary} text-white shadow-md` : 'text-gray-300'}`}>
+                                    <Icon name={t.charAt(0).toUpperCase() + t.slice(1)} size={14} />
+                                    {t === 'calendar' ? '月曆' : t === 'list' ? '清單' : t === 'battle' ? '大賽' : '分析'}
+                                </button>
+                            ))}
+                        </div>
+                    </nav>
+                    <main className="max-w-xl mx-auto p-4 mt-4">
+                        {view === 'calendar' && (
+                            <div className="bg-white rounded-[2.5rem] shadow-lg p-6 animate-pop">
+                                <div className="flex items-center justify-between mb-8 px-2">
+                                    <button onClick={() => setCurrentDate(new Date(currentDate.getFullYear(), currentDate.getMonth()-1, 1))} className="text-gray-300 text-2xl font-bold p-2">◀</button>
+                                    <h2 className="text-xl font-black text-gray-700">{currentDate.getFullYear()} 年 {currentDate.getMonth()+1} 月</h2>
+                                    <button onClick={() => setCurrentDate(new Date(currentDate.getFullYear(), currentDate.getMonth()+1, 1))} className="text-gray-300 text-2xl font-bold p-2">▶</button>
+                                </div>
+                                <div className="grid grid-cols-7 gap-2">
+                                    {['日','一','二','三','四','五','六'].map(w => <div key={w} className="text-center text-[10px] font-bold text-gray-200 mb-2">{w}</div>)}
+                                    {(() => {
+                                        const y = currentDate.getFullYear(), m = currentDate.getMonth();
+                                        const total = new Date(y, m + 1, 0).getDate();
+                                        const offset = new Date(y, m, 1).getDay();
+                                        const cells = [];
+                                        for(let i=0; i<offset; i++) cells.push(<div key={`e-${i}`} />);
+                                        for(let d=1; d<=total; d++) {
+                                            const ds = `${y}-${String(m+1).padStart(2,'0')}-${String(d).padStart(2,'0')}`;
+                                            const dayLogs = logs.filter(l => l.date === ds);
+                                            cells.push(
+                                                <div key={d} onClick={() => { setSelectedDate(ds); setIsModalOpen(true); const ex = logs.find(l => l.date === ds && l.userId === activeUserId); setFormData(ex ? {...ex} : {store:'', item:'', ice:'微冰', sweetness:'微糖', price:'', calories:'', note:''}); }} className="aspect-square rounded-2xl flex flex-col items-center justify-center border border-gray-50 active:bg-gray-100 transition-colors btn-active relative">
+                                                    <span className="text-xs font-bold text-gray-400">{d}</span>
+                                                    <div className="flex gap-0.5 mt-1 overflow-hidden px-1">
+                                                        {dayLogs.slice(0, 3).map(l => (
+                                                            <div key={l.id} className={`w-1.5 h-1.5 rounded-full ${THEME_MAP[l.userColor]?.accent || 'bg-gray-300'}`} />
+                                                        ))}
+                                                    </div>
+                                                </div>
+                                            );
+                                        }
+                                        return cells;
+                                    })()}
+                                </div>
+                            </div>
+                        )}
+                        {view === 'battle' && (
+                            <div className="space-y-6 animate-pop">
+                                <div className="bg-white p-6 rounded-[2.5rem] shadow-md">
+                                    <h3 className="font-black text-gray-700 mb-4 flex items-center gap-2"><Icon name="Battle" /> 手搖對決大賽</h3>
+                                    <div className="space-y-6">
+                                        <div className="space-y-3">
+                                            <div className="flex items-center gap-2 text-sm font-black text-gray-600">🏆 誰喝最多杯？</div>
+                                            {battleStats.countRank.map((res, i) => (
+                                                <div key={res.id} className={`flex items-center justify-between p-4 rounded-2xl ${i === 0 ? 'gold-border shadow-md' : 'bg-gray-50'}`}>
+                                                    <div className="flex items-center gap-3"><span className="text-lg">{i === 0 ? '👑' : i + 1}</span><span className="text-xl">{res.icon}</span><span className={`font-black ${THEME_MAP[res.color]?.text}`}>{res.name}</span></div>
+                                                    <div className="font-black text-xl">{res.count} <span className="text-xs font-normal text-gray-400">杯</span></div>
+                                                </div>
+                                            ))}
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        )}
+                    </main>
+                    {isModalOpen && (
+                        <div className="fixed inset-0 z-[1000] flex items-end justify-center p-0">
+                            <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={() => setIsModalOpen(false)} />
+                            <div className="relative bg-white w-full max-w-xl rounded-t-[3.5rem] p-8 pb-12 animate-in slide-in-from-bottom duration-300 shadow-2xl overflow-y-auto max-h-[94vh]">
+                                <div className="w-12 h-1.5 bg-gray-100 rounded-full mx-auto mb-8" />
+                                <form onSubmit={async (e) => {
+                                    e.preventDefault();
+                                    if (!window.fb) return;
+                                    const { db, appId } = window.fb;
+                                    const payload = { ...formData, price: Number(formData.price), calories: Number(formData.calories), userId: activeUserId, userName: activeUser.name, userColor: activeUser.color, userIcon: activeUser.icon, date: selectedDate, updatedAt: Date.now() };
+                                    const ex = logs.find(l => l.date === selectedDate && l.userId === activeUserId);
+                                    if (ex) await window.fb.setDoc(window.fb.doc(db, 'artifacts', appId, 'public', 'data', 'logs', ex.id), payload);
+                                    else await window.fb.addDoc(window.fb.collection(db, 'artifacts', appId, 'public', 'data', 'logs'), payload);
+                                    setIsModalOpen(false);
+                                }} className="space-y-6">
+                                    <div className="grid grid-cols-2 gap-4">
+                                        <input placeholder="店家" className="w-full p-4 bg-gray-50 rounded-2xl outline-none" value={formData.store} onChange={e => setFormData({...formData, store: e.target.value})} required />
+                                        <input placeholder="飲料" className="w-full p-4 bg-gray-50 rounded-2xl outline-none" value={formData.item} onChange={e => setFormData({...formData, item: e.target.value})} required />
+                                    </div>
+                                    <div className="grid grid-cols-2 gap-4">
+                                        <input type="number" placeholder="金額" className="w-full p-4 bg-gray-50 rounded-2xl outline-none" value={formData.price} onChange={e => setFormData({...formData, price: e.target.value})} required />
+                                        <input type="number" placeholder="熱量" className="w-full p-4 bg-gray-50 rounded-2xl outline-none" value={formData.calories} onChange={e => setFormData({...formData, calories: e.target.value})} />
+                                    </div>
+                                    <button type="submit" className={`w-full py-5 rounded-[2rem] text-white font-black shadow-lg ${theme.accent}`}>儲存紀錄</button>
+                                </form>
+                            </div>
+                        </div>
+                    )}
+                </div>
+            );
+        }
+
+        const root = ReactDOM.createRoot(document.getElementById('root'));
+        root.render(<App />);
+    </script>
+</body>
+</html>
+
