@@ -38,27 +38,26 @@
         import { getAuth, signInAnonymously } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
         import { initializeFirestore, collection, doc, setDoc, onSnapshot, addDoc, deleteDoc } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
 
-        // --- 欸比注意！如果你要發布成獨立網站，請把下方的 config 換成你自己的 Firebase Config ---
-        // 你可以在 Firebase Console -> 專案設定 -> 你的應用程式 中找到這段 JSON
-        const firebaseConfig = {
-        apiKey: "AIzaSyBbMEOuJeOkqj3cksCqLbYTegRSxXG7Z8g",
-        authDomain: "drink-ca906.firebaseapp.com",
-        projectId: "drink-ca906",
-        storageBucket: "drink-ca906.firebasestorage.app",
-        messagingSenderId: "102325799308",
-        appId: "1:102325799308:web:8a4cabc8c0d622a3efeea9",
-        measurementId: "G-ESTFV831NZ"
+        // 欸比注意：這裡已經填入妳剛才給我的 Firebase 資訊了
+        const config = {
+            apiKey: "AIzaSyBbMEOuJeOkqj3cksCqLbYTegRSxXG7Z8g",
+            authDomain: "drink-ca906.firebaseapp.com",
+            projectId: "drink-ca906",
+            storageBucket: "drink-ca906.firebasestorage.app",
+            messagingSenderId: "102325799308",
+            appId: "1:102325799308:web:8a4cabc8c0d622a3efeea9",
+            measurementId: "G-ESTFV831NZ"
         };
         const id = 'drink-tracker-battle-2026';
 
-        if (config.apiKey && config.apiKey !== "AIzaSyAGLiEBZHVF_SejFPQx2POpIFOGrVw3WsI") {
+        if (config.apiKey && config.apiKey.startsWith("AIza")) {
             const app = initializeApp(config);
             const auth = getAuth(app);
             const db = initializeFirestore(app, { experimentalForceLongPolling: true });
-            window.fb = { db, auth, appId: id, collection, doc, setDoc, onSnapshot, addDoc, deleteDoc };
+            // 把所有東西塞進 window.fb 讓 React 抓
+            window.fb = { db, auth, appId: id, collection, doc, setDoc, onSnapshot, addDoc, deleteDoc, signInAnonymously };
         } else {
-            console.warn("尚未配置 Firebase Config，目前僅能使用預覽功能。");
-            // 為了讓你在沒有設定時也能看到畫面，這裡做一個 mock
+            console.warn("尚未配置 Firebase Config");
             window.fb = null;
         }
     </script>
@@ -66,7 +65,7 @@
     <script type="text/babel">
         const { useState, useEffect, useMemo, useRef } = React;
 
-        const ICE_LEVELS = ['正常冰', '少冰', '微冰', '去冰', '完全去冰','熱'];
+        const ICE_LEVELS = ['正常冰', '少冰', '微冰', '去冰', '完全去冰', '熱'];
         const SWEETNESS_LEVELS = ['正常糖', '七分糖', '半糖', '三分糖', '微糖', '無糖'];
         const AVATAR_OPTIONS = ['🥤', '🧋', '🎧', '🦸‍♀️', '🐱', '🐶', '🦊', '🐻', '🐨', '🐯', '🐸', '🦄', '🌈', '🔥', '✨', '🍀', '🍕', '🍰', '🎸', '🎮'];
 
@@ -98,10 +97,9 @@
                 { id: 'carey', name: 'Carey', color: 'pink', icon: '🦸‍♀️' }
             ]);
             const [logs, setLogs] = useState([]);
-            const [currentDate, setCurrentDate] = useState(new Date(2026, 0, 1));
+            const [currentDate, setCurrentDate] = useState(new Date(2026, 0, 0));
             const [isModalOpen, setIsModalOpen] = useState(false);
             const [selectedDate, setSelectedDate] = useState(null);
-            const [isAiCalculating, setIsAiCalculating] = useState(false);
             const [isAddingUser, setIsAddingUser] = useState(false);
             const [newUserName, setNewUserName] = useState('');
             const [newUserColor, setNewUserColor] = useState('blue');
@@ -113,7 +111,7 @@
                 const init = setInterval(() => {
                     if (window.fb) {
                         clearInterval(init);
-                        const { auth, db, appId, collection, onSnapshot } = window.fb;
+                        const { auth, db, appId, collection, onSnapshot, signInAnonymously } = window.fb;
                         signInAnonymously(auth).then(() => {
                             onSnapshot(collection(db, 'artifacts', appId, 'public', 'data', 'logs'), snap => {
                                 setLogs(snap.docs.map(d => ({ id: d.id, ...d.data() })));
@@ -128,7 +126,7 @@
                                     });
                                 }
                             });
-                        });
+                        }).catch(err => console.error("Firebase Auth Error:", err));
                     }
                 }, 500);
                 return () => clearInterval(init);
@@ -214,10 +212,11 @@
                                         <button onClick={() => setIsAddingUser(false)} className="flex-1 py-3 font-bold text-gray-400">取消</button>
                                         <button onClick={async () => {
                                             if (!newUserName || !window.fb) return;
+                                            const { db, appId, doc, setDoc } = window.fb;
                                             const nid = `u_${Date.now()}`;
-                                            await window.fb.setDoc(window.fb.doc(window.fb.db, 'artifacts', window.fb.appId, 'public', 'data', 'users', nid), { id: nid, name: newUserName, color: newUserColor, icon: newUserIcon });
+                                            await setDoc(doc(db, 'artifacts', appId, 'public', 'data', 'users', nid), { id: nid, name: newUserName, color: newUserColor, icon: newUserIcon });
                                             setNewUserName(''); setIsAddingUser(false);
-                                        }} className="flex-1 py-3 font-black bg-blue-500 text-white rounded-2xl">加入對決</button>
+                                        }} className="flex-1 py-3 font-black bg-blue-500 text-white rounded-2xl shadow-md">加入對決</button>
                                     </div>
                                 </div>
                             </div>
@@ -309,11 +308,11 @@
                                 <form onSubmit={async (e) => {
                                     e.preventDefault();
                                     if (!window.fb) return;
-                                    const { db, appId } = window.fb;
+                                    const { db, appId, doc, setDoc, collection, addDoc } = window.fb;
                                     const payload = { ...formData, price: Number(formData.price), calories: Number(formData.calories), userId: activeUserId, userName: activeUser.name, userColor: activeUser.color, userIcon: activeUser.icon, date: selectedDate, updatedAt: Date.now() };
                                     const ex = logs.find(l => l.date === selectedDate && l.userId === activeUserId);
-                                    if (ex) await window.fb.setDoc(window.fb.doc(db, 'artifacts', appId, 'public', 'data', 'logs', ex.id), payload);
-                                    else await window.fb.addDoc(window.fb.collection(db, 'artifacts', appId, 'public', 'data', 'logs'), payload);
+                                    if (ex) await setDoc(doc(db, 'artifacts', appId, 'public', 'data', 'logs', ex.id), payload);
+                                    else await addDoc(collection(db, 'artifacts', appId, 'public', 'data', 'logs'), payload);
                                     setIsModalOpen(false);
                                 }} className="space-y-6">
                                     <div className="grid grid-cols-2 gap-4">
@@ -323,6 +322,15 @@
                                     <div className="grid grid-cols-2 gap-4">
                                         <input type="number" placeholder="金額" className="w-full p-4 bg-gray-50 rounded-2xl outline-none" value={formData.price} onChange={e => setFormData({...formData, price: e.target.value})} required />
                                         <input type="number" placeholder="熱量" className="w-full p-4 bg-gray-50 rounded-2xl outline-none" value={formData.calories} onChange={e => setFormData({...formData, calories: e.target.value})} />
+                                    </div>
+                                    <div className="space-y-3">
+                                        <label className="text-xs font-black text-gray-300 ml-2">冰塊 / 甜度</label>
+                                        <div className="flex gap-2 overflow-x-auto no-scrollbar pb-1">
+                                            {ICE_LEVELS.map(l => <button key={l} type="button" onClick={() => setFormData({...formData, ice: l})} className={`px-4 py-2 rounded-xl text-[10px] font-bold whitespace-nowrap border transition-colors ${formData.ice === l ? theme.primary + ' text-white border-transparent' : 'bg-white text-gray-400 border-gray-100'}`}>{l}</button>)}
+                                        </div>
+                                        <div className="flex gap-2 overflow-x-auto no-scrollbar">
+                                            {SWEETNESS_LEVELS.map(l => <button key={l} type="button" onClick={() => setFormData({...formData, sweetness: l})} className={`px-4 py-2 rounded-xl text-[10px] font-bold whitespace-nowrap border transition-colors ${formData.sweetness === l ? theme.primary + ' text-white border-transparent' : 'bg-white text-gray-400 border-gray-100'}`}>{l}</button>)}
+                                        </div>
                                     </div>
                                     <button type="submit" className={`w-full py-5 rounded-[2rem] text-white font-black shadow-lg ${theme.accent}`}>儲存紀錄</button>
                                 </form>
@@ -338,4 +346,5 @@
     </script>
 </body>
 </html>
+
 
