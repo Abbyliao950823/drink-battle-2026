@@ -38,7 +38,6 @@
         import { getAuth, signInAnonymously } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
         import { initializeFirestore, collection, doc, setDoc, onSnapshot, addDoc, deleteDoc } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
 
-        // 欸比注意：這裡已經填入妳剛才給我的 Firebase 資訊了
         const config = {
             apiKey: "AIzaSyBbMEOuJeOkqj3cksCqLbYTegRSxXG7Z8g",
             authDomain: "drink-ca906.firebaseapp.com",
@@ -50,14 +49,14 @@
         };
         const id = 'drink-tracker-battle-2026';
 
-        if (config.apiKey && config.apiKey.startsWith("AIza")) {
+        try {
             const app = initializeApp(config);
             const auth = getAuth(app);
             const db = initializeFirestore(app, { experimentalForceLongPolling: true });
-            // 把所有東西塞進 window.fb 讓 React 抓
             window.fb = { db, auth, appId: id, collection, doc, setDoc, onSnapshot, addDoc, deleteDoc, signInAnonymously };
-        } else {
-            console.warn("尚未配置 Firebase Config");
+            console.log("Firebase 基地連線成功！");
+        } catch (e) {
+            console.error("Firebase 啟動失敗：", e);
             window.fb = null;
         }
     </script>
@@ -97,7 +96,7 @@
                 { id: 'carey', name: 'Carey', color: 'pink', icon: '🦸‍♀️' }
             ]);
             const [logs, setLogs] = useState([]);
-            const [currentDate, setCurrentDate] = useState(new Date(2026, 0, 0));
+            const [currentDate, setCurrentDate] = useState(new Date(2026, 0, 1));
             const [isModalOpen, setIsModalOpen] = useState(false);
             const [selectedDate, setSelectedDate] = useState(null);
             const [isAddingUser, setIsAddingUser] = useState(false);
@@ -216,7 +215,7 @@
                                             const nid = `u_${Date.now()}`;
                                             await setDoc(doc(db, 'artifacts', appId, 'public', 'data', 'users', nid), { id: nid, name: newUserName, color: newUserColor, icon: newUserIcon });
                                             setNewUserName(''); setIsAddingUser(false);
-                                        }} className="flex-1 py-3 font-black bg-blue-500 text-white rounded-2xl shadow-md">加入對決</button>
+                                        }} className="flex-1 py-3 font-black bg-blue-500 text-white rounded-2xl">加入對決</button>
                                     </div>
                                 </div>
                             </div>
@@ -346,5 +345,3 @@
     </script>
 </body>
 </html>
-
-
