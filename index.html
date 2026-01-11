@@ -39,7 +39,7 @@
         import { initializeFirestore, collection, doc, setDoc, onSnapshot, addDoc, deleteDoc } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
 
         const firebaseConfig = {
-            apiKey: "AIzaSyBbMEOuJeOkqj3cksCqLbYTegRSxXG7Z8g",
+            apiKey: "AIzaSyAGLiEBZHVF_SejFPQx2POpIFOGrVw3WsI",
             authDomain: "drink-ca906.firebaseapp.com",
             projectId: "drink-ca906",
             storageBucket: "drink-ca906.firebasestorage.app",
@@ -67,9 +67,8 @@
         const SWEETNESS_LEVELS = ['正常糖', '七分糖', '半糖', '三分糖', '微糖', '無糖'];
         const AVATAR_OPTIONS = ['🥤', '🧋', '🎧', '🦸‍♀️', '🐱', '🐶', '🦊', '🐻', '🐨', '🐯', '🐸', '🦄', '🌈', '🔥', '✨', '🍀', '🍕', '🍰', '🎸', '🎮'];
         
-        // 內建常見名單
-        const DEFAULT_STORES = ['50嵐', 'Coco都可', '迷客夏', '可不可熟成紅茶', '茶湯會', '清心福全', '得正', '麻古茶坊', '五桐號', '一芳', '龜記', '珍煮丹'];
-        const DEFAULT_ITEMS = ['珍珠奶茶', '經典紅茶', '烏龍拿鐵', '翡翠檸檬', '多多綠茶', '芝芝葡萄', '熟成拿鐵', '焙茶拿鐵', '金萱茶'];
+        const const DEFAULT_STORES = ['50嵐', 'Coco都可', '迷客夏', '可不可熟成紅茶', '茶湯會', '清心福全', '得正', '麻古茶坊', '五桐號', '一芳', '龜記', '珍煮丹','大苑子', '萬波', '鶴茶樓', '再睡5分鐘', '八曜和茶', '烏弄', '拾汣茶屋', '約翰紅茶公司', '七盞茶', '上宇林', '先喝道', 'SOMA', '康青龍', '鮮茶道', '老賴茶棧', '有飲', '春水堂', '天仁茗茶', '叮哥茶飲', '水巷茶弄', '日出茶太', '功夫茶', '麥吉'];
+        const DEFAULT_ITEMS = ['珍珠奶茶', '經典紅茶', '烏龍拿鐵', '翡翠檸檬', '多多綠茶', '芝芝葡萄', '熟成拿鐵', '焙茶拿鐵', '金萱茶','鐵觀音', '四季春', '楊枝甘露', '波霸鮮奶茶', '滿杯紅柚', '柳橙綠茶', '海鹽奶蓋紅茶', '芋圓鮮奶', '仙草凍奶茶', '布丁奶茶', '黑糖珍珠鮮奶', '蕎麥茶', '甘蔗青茶', '芝芝草莓', '蜂蜜檸檬', '桂花烏龍', '冬瓜青茶'];
 
         const THEME_MAP = {
             pink: { primary: 'bg-pink-400', secondary: 'bg-pink-50', text: 'text-pink-600', accent: 'bg-pink-500', light: 'bg-pink-100' },
@@ -99,7 +98,12 @@
                 { id: 'carey', name: 'Carey', color: 'pink', icon: '🦸‍♀️' }
             ]);
             const [logs, setLogs] = useState([]);
-            const [currentDate, setCurrentDate] = useState(new Date(2026, 0, 1));
+            
+            // 自動偵測今日日期
+            const now = new Date();
+            const todayStr = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
+            
+            const [currentDate, setCurrentDate] = useState(new Date(now.getFullYear(), now.getMonth(), 1));
             const [isModalOpen, setIsModalOpen] = useState(false);
             const [selectedDate, setSelectedDate] = useState(null);
             const [isAiCalculating, setIsAiCalculating] = useState(false);
@@ -107,16 +111,17 @@
             const [newUserName, setNewUserName] = useState('');
             const [newUserColor, setNewUserColor] = useState('blue');
             const [newUserIcon, setNewUserIcon] = useState('🥤');
-            const [statsRange, setStatsRange] = useState({ start: '2026-01-01', end: '2026-12-31' });
+            const [statsRange, setStatsRange] = useState({ 
+                start: `${now.getFullYear()}-01-01`, 
+                end: `${now.getFullYear()}-12-31` 
+            });
             const [formData, setFormData] = useState({ store: '', item: '', ice: '微冰', sweetness: '微糖', price: '', calories: '', note: '' });
 
             const lastAiCombo = useRef("");
 
-            // 實作自動讀取舊紀錄的選單
             const suggestions = useMemo(() => {
                 const historyStores = [...new Set(logs.map(l => l.store))].filter(Boolean);
                 const historyItems = [...new Set(logs.map(l => l.item))].filter(Boolean);
-                
                 return {
                     stores: [...new Set([...DEFAULT_STORES, ...historyStores])],
                     items: [...new Set([...DEFAULT_ITEMS, ...historyItems])]
@@ -126,11 +131,8 @@
             const runAiCal = async () => {
                 const combo = `${formData.store}-${formData.item}-${formData.sweetness}`;
                 if (!formData.store || !formData.item || combo === lastAiCombo.current) return;
-                
-                // 欸比，記得在這裡填入妳的 Gemini API Key！
                 const apiKey = ""; 
                 if (!apiKey) return;
-
                 setIsAiCalculating(true);
                 lastAiCombo.current = combo;
                 try {
@@ -313,14 +315,19 @@
                                         for(let d=1; d<=total; d++) {
                                             const ds = `${y}-${String(m+1).padStart(2,'0')}-${String(d).padStart(2,'0')}`;
                                             const dayLogs = logs.filter(l => l.date === ds);
+                                            const isToday = ds === todayStr;
+                                            
                                             cells.push(
-                                                <div key={d} onClick={() => { setSelectedDate(ds); setIsModalOpen(true); const ex = logs.find(l => l.date === ds && l.userId === activeUserId); setFormData(ex ? {...ex} : {store:'', item:'', ice:'微冰', sweetness:'微糖', price:'', calories:'', note:''}); }} className="aspect-square rounded-2xl flex flex-col items-center justify-center border border-gray-50 active:bg-gray-100 transition-colors btn-active relative">
-                                                    <span className="text-xs font-bold text-gray-400">{d}</span>
+                                                <div key={d} onClick={() => { setSelectedDate(ds); setIsModalOpen(true); const ex = logs.find(l => l.date === ds && l.userId === activeUserId); setFormData(ex ? {...ex} : {store:'', item:'', ice:'微冰', sweetness:'微糖', price:'', calories:'', note:''}); }} 
+                                                    className={`aspect-square rounded-2xl flex flex-col items-center justify-center border transition-all btn-active relative 
+                                                    ${isToday ? 'ring-2 ring-indigo-400 bg-indigo-50/50 border-indigo-100 shadow-sm' : 'border-gray-50 active:bg-gray-100'}`}>
+                                                    <span className={`text-xs font-bold ${isToday ? 'text-indigo-600' : 'text-gray-400'}`}>{d}</span>
                                                     <div className="flex gap-0.5 mt-1 overflow-hidden px-1">
                                                         {dayLogs.slice(0, 3).map(l => (
                                                             <div key={l.id} className={`w-1.5 h-1.5 rounded-full ${THEME_MAP[l.userColor]?.accent || 'bg-gray-300'}`} />
                                                         ))}
                                                     </div>
+                                                    {isToday && <div className="absolute -top-1 -right-1 text-[8px]">⭐</div>}
                                                 </div>
                                             );
                                         }
