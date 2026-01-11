@@ -38,7 +38,7 @@
         import { getAuth, signInAnonymously } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
         import { initializeFirestore, collection, doc, setDoc, onSnapshot, addDoc, deleteDoc } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
 
-        const config = {
+        const firebaseConfig = {
             apiKey: "AIzaSyBbMEOuJeOkqj3cksCqLbYTegRSxXG7Z8g",
             authDomain: "drink-ca906.firebaseapp.com",
             projectId: "drink-ca906",
@@ -50,13 +50,12 @@
         const id = 'drink-tracker-battle-2026';
 
         try {
-            const app = initializeApp(config);
+            const app = initializeApp(firebaseConfig);
             const auth = getAuth(app);
             const db = initializeFirestore(app, { experimentalForceLongPolling: true });
             window.fb = { db, auth, appId: id, collection, doc, setDoc, onSnapshot, addDoc, deleteDoc, signInAnonymously };
-            console.log("Firebase 基地連線成功！");
         } catch (e) {
-            console.error("Firebase 啟動失敗：", e);
+            console.error("Firebase 連線失敗", e);
             window.fb = null;
         }
     </script>
@@ -67,6 +66,10 @@
         const ICE_LEVELS = ['正常冰', '少冰', '微冰', '去冰', '完全去冰', '熱'];
         const SWEETNESS_LEVELS = ['正常糖', '七分糖', '半糖', '三分糖', '微糖', '無糖'];
         const AVATAR_OPTIONS = ['🥤', '🧋', '🎧', '🦸‍♀️', '🐱', '🐶', '🦊', '🐻', '🐨', '🐯', '🐸', '🦄', '🌈', '🔥', '✨', '🍀', '🍕', '🍰', '🎸', '🎮'];
+        
+        // 內建常見名單
+        const DEFAULT_STORES = ['50嵐', 'Coco都可', '迷客夏', '可不可熟成紅茶', '茶湯會', '清心福全', '得正', '麻古茶坊', '五桐號', '一芳', '龜記', '珍煮丹'];
+        const DEFAULT_ITEMS = ['珍珠奶茶', '經典紅茶', '烏龍拿鐵', '翡翠檸檬', '多多綠茶', '芝芝葡萄', '熟成拿鐵', '焙茶拿鐵', '金萱茶'];
 
         const THEME_MAP = {
             pink: { primary: 'bg-pink-400', secondary: 'bg-pink-50', text: 'text-pink-600', accent: 'bg-pink-500', light: 'bg-pink-100' },
@@ -99,12 +102,58 @@
             const [currentDate, setCurrentDate] = useState(new Date(2026, 0, 1));
             const [isModalOpen, setIsModalOpen] = useState(false);
             const [selectedDate, setSelectedDate] = useState(null);
+            const [isAiCalculating, setIsAiCalculating] = useState(false);
             const [isAddingUser, setIsAddingUser] = useState(false);
             const [newUserName, setNewUserName] = useState('');
             const [newUserColor, setNewUserColor] = useState('blue');
             const [newUserIcon, setNewUserIcon] = useState('🥤');
             const [statsRange, setStatsRange] = useState({ start: '2026-01-01', end: '2026-12-31' });
             const [formData, setFormData] = useState({ store: '', item: '', ice: '微冰', sweetness: '微糖', price: '', calories: '', note: '' });
+
+            const lastAiCombo = useRef("");
+
+            // 實作自動讀取舊紀錄的選單
+            const suggestions = useMemo(() => {
+                const historyStores = [...new Set(logs.map(l => l.store))].filter(Boolean);
+                const historyItems = [...new Set(logs.map(l => l.item))].filter(Boolean);
+                
+                return {
+                    stores: [...new Set([...DEFAULT_STORES, ...historyStores])],
+                    items: [...new Set([...DEFAULT_ITEMS, ...historyItems])]
+                };
+            }, [logs]);
+
+            const runAiCal = async () => {
+                const combo = `${formData.store}-${formData.item}-${formData.sweetness}`;
+                if (!formData.store || !formData.item || combo === lastAiCombo.current) return;
+                
+                // 欸比，記得在這裡填入妳的 Gemini API Key！
+                const apiKey = ""; 
+                if (!apiKey) return;
+
+                setIsAiCalculating(true);
+                lastAiCombo.current = combo;
+                try {
+                    const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-09-2025:generateContent?key=${apiKey}`, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({
+                            contents: [{ parts: [{ text: `店名：${formData.store}，品項：${formData.item}，甜度：${formData.sweetness}。估計這杯手搖飲的總熱量kcal？只回傳數字。` }] }],
+                            systemInstruction: { parts: [{ text: "你是手搖飲營養師，請根據品項與甜度估計熱量，只回傳整數數字，不要有任何文字。" }] }
+                        })
+                    });
+                    const data = await res.json();
+                    const num = data.candidates?.[0]?.content?.parts?.[0]?.text?.match(/\d+/);
+                    if (num) setFormData(p => ({ ...p, calories: num[0] }));
+                } catch (e) { console.error("AI 計算失敗", e); } finally { setIsAiCalculating(false); }
+            };
+
+            useEffect(() => {
+                if (isModalOpen && formData.store && formData.item) {
+                    const t = setTimeout(runAiCal, 1500);
+                    return () => clearTimeout(t);
+                }
+            }, [formData.store, formData.item, formData.sweetness, isModalOpen]);
 
             useEffect(() => {
                 const init = setInterval(() => {
@@ -125,7 +174,7 @@
                                     });
                                 }
                             });
-                        }).catch(err => console.error("Firebase Auth Error:", err));
+                        }).catch(e => console.error("Firebase Login Failed", e));
                     }
                 }, 500);
                 return () => clearInterval(init);
@@ -215,7 +264,7 @@
                                             const nid = `u_${Date.now()}`;
                                             await setDoc(doc(db, 'artifacts', appId, 'public', 'data', 'users', nid), { id: nid, name: newUserName, color: newUserColor, icon: newUserIcon });
                                             setNewUserName(''); setIsAddingUser(false);
-                                        }} className="flex-1 py-3 font-black bg-blue-500 text-white rounded-2xl">加入對決</button>
+                                        }} className="flex-1 py-3 font-black bg-blue-500 text-white rounded-2xl shadow-md">加入對決</button>
                                     </div>
                                 </div>
                             </div>
@@ -280,10 +329,35 @@
                                 </div>
                             </div>
                         )}
+                        {view === 'list' && (
+                            <div className="space-y-4 animate-pop">
+                                {logs.filter(l => l.userId === activeUserId).sort((a,b) => b.date.localeCompare(a.date)).length > 0 ? (
+                                    logs.filter(l => l.userId === activeUserId).sort((a,b) => b.date.localeCompare(a.date)).map(log => (
+                                        <div key={log.id} className="bg-white p-5 rounded-[2rem] shadow-sm border border-gray-100 flex items-center gap-4 animate-pop">
+                                            <div className={`w-12 h-12 rounded-2xl ${theme.light} flex items-center justify-center text-xl`}>🥤</div>
+                                            <div className="flex-1">
+                                                <div className="flex justify-between"><h4 className="font-black text-gray-800">{log.item}</h4><span className="text-[10px] font-bold text-gray-300">{log.date}</span></div>
+                                                <p className="text-xs text-gray-400 font-medium">{log.store} · {log.sweetness} · {log.ice}</p>
+                                            </div>
+                                            <div className="text-right">
+                                                <div className="font-black text-lg">${log.price}</div>
+                                                <div className="text-[10px] font-bold text-orange-400">🔥{log.calories}k</div>
+                                            </div>
+                                        </div>
+                                    ))
+                                ) : (
+                                    <div className="text-center py-20 text-gray-300 font-bold italic">目前的清單是空的喔...</div>
+                                )}
+                            </div>
+                        )}
                         {view === 'battle' && (
                             <div className="space-y-6 animate-pop">
                                 <div className="bg-white p-6 rounded-[2.5rem] shadow-md">
                                     <h3 className="font-black text-gray-700 mb-4 flex items-center gap-2"><Icon name="Battle" /> 手搖對決大賽</h3>
+                                    <div className="grid grid-cols-2 gap-2 mb-4">
+                                        <input type="date" className="p-3 bg-gray-50 rounded-xl text-[10px] font-bold outline-none" value={statsRange.start} onChange={e => setStatsRange({...statsRange, start: e.target.value})} />
+                                        <input type="date" className="p-3 bg-gray-50 rounded-xl text-[10px] font-bold outline-none" value={statsRange.end} onChange={e => setStatsRange({...statsRange, end: e.target.value})} />
+                                    </div>
                                     <div className="space-y-6">
                                         <div className="space-y-3">
                                             <div className="flex items-center gap-2 text-sm font-black text-gray-600">🏆 誰喝最多杯？</div>
@@ -294,6 +368,40 @@
                                                 </div>
                                             ))}
                                         </div>
+                                        <div className="space-y-3">
+                                            <div className="flex items-center gap-2 text-sm font-black text-gray-600">💰 誰花最多錢？</div>
+                                            {battleStats.costRank.map((res, i) => (
+                                                <div key={res.id} className={`flex items-center justify-between p-4 rounded-2xl ${i === 0 ? 'bg-amber-100 border-2 border-amber-300' : 'bg-gray-50 opacity-80'}`}>
+                                                    <div className="flex items-center gap-3"><span className="text-lg">{i === 0 ? '🤑' : i + 1}</span><span className="text-xl">{res.icon}</span><span className={`font-black ${THEME_MAP[res.color]?.text}`}>{res.name}</span></div>
+                                                    <div className="font-black text-xl">${res.cost}</div>
+                                                </div>
+                                            ))}
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        )}
+                        {view === 'stats' && (
+                            <div className="space-y-6 animate-pop">
+                                <div className="bg-white p-6 rounded-[2.5rem] shadow-md">
+                                    <h3 className="font-black text-gray-700 mb-4 flex items-center gap-2">個人期間統計</h3>
+                                    <div className="grid grid-cols-2 gap-2 mb-6">
+                                        <input type="date" className="p-3 bg-gray-50 rounded-xl text-[10px] font-bold outline-none" value={statsRange.start} onChange={e => setStatsRange({...statsRange, start: e.target.value})} />
+                                        <input type="date" className="p-3 bg-gray-50 rounded-xl text-[10px] font-bold outline-none" value={statsRange.end} onChange={e => setStatsRange({...statsRange, end: e.target.value})} />
+                                    </div>
+                                    <div className="grid grid-cols-2 gap-4">
+                                        <div className="bg-gray-50 p-6 rounded-[2rem] text-center">
+                                            <div className="text-[10px] font-bold text-gray-400 mb-1 uppercase">累計杯數</div>
+                                            <div className={`text-3xl font-black ${theme.text}`}>{battleStats.countRank.find(x => x.id === activeUserId)?.count || 0}</div>
+                                        </div>
+                                        <div className="bg-gray-50 p-6 rounded-[2rem] text-center">
+                                            <div className="text-[10px] font-bold text-gray-400 mb-1 uppercase">累計花費</div>
+                                            <div className="text-3xl font-black text-gray-800">${battleStats.costRank.find(x => x.id === activeUserId)?.cost || 0}</div>
+                                        </div>
+                                        <div className="col-span-2 bg-orange-50 p-6 rounded-[2rem] text-center">
+                                            <div className="text-[10px] font-bold text-orange-300 mb-1 uppercase">累計攝取熱量</div>
+                                            <div className="text-3xl font-black text-orange-500">{battleStats.calRank.find(x => x.id === activeUserId)?.calories || 0} kcal</div>
+                                        </div>
                                     </div>
                                 </div>
                             </div>
@@ -302,7 +410,7 @@
                     {isModalOpen && (
                         <div className="fixed inset-0 z-[1000] flex items-end justify-center p-0">
                             <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={() => setIsModalOpen(false)} />
-                            <div className="relative bg-white w-full max-w-xl rounded-t-[3.5rem] p-8 pb-12 animate-in slide-in-from-bottom duration-300 shadow-2xl overflow-y-auto max-h-[94vh]">
+                            <div className="relative bg-white w-full max-w-xl rounded-t-[3.5rem] p-8 pb-12 animate-in slide-in-from-bottom duration-300 shadow-2xl overflow-y-auto max-h-[94vh] no-scrollbar">
                                 <div className="w-12 h-1.5 bg-gray-100 rounded-full mx-auto mb-8" />
                                 <form onSubmit={async (e) => {
                                     e.preventDefault();
@@ -315,12 +423,33 @@
                                     setIsModalOpen(false);
                                 }} className="space-y-6">
                                     <div className="grid grid-cols-2 gap-4">
-                                        <input placeholder="店家" className="w-full p-4 bg-gray-50 rounded-2xl outline-none" value={formData.store} onChange={e => setFormData({...formData, store: e.target.value})} required />
-                                        <input placeholder="飲料" className="w-full p-4 bg-gray-50 rounded-2xl outline-none" value={formData.item} onChange={e => setFormData({...formData, item: e.target.value})} required />
+                                        <div className="space-y-1">
+                                            <label className="text-[10px] font-black text-gray-300 ml-2">店家</label>
+                                            <input list="store-list" placeholder="店家 (例如: Coco)" className="w-full p-4 bg-gray-50 rounded-2xl outline-none" value={formData.store} onChange={e => setFormData({...formData, store: e.target.value})} required />
+                                            <datalist id="store-list">
+                                                {suggestions.stores.map(s => <option key={s} value={s} />)}
+                                            </datalist>
+                                        </div>
+                                        <div className="space-y-1">
+                                            <label className="text-[10px] font-black text-gray-300 ml-2">飲料</label>
+                                            <input list="item-list" placeholder="飲料 (例如: 珍奶)" className="w-full p-4 bg-gray-50 rounded-2xl outline-none" value={formData.item} onChange={e => setFormData({...formData, item: e.target.value})} required />
+                                            <datalist id="item-list">
+                                                {suggestions.items.map(i => <option key={i} value={i} />)}
+                                            </datalist>
+                                        </div>
                                     </div>
                                     <div className="grid grid-cols-2 gap-4">
-                                        <input type="number" placeholder="金額" className="w-full p-4 bg-gray-50 rounded-2xl outline-none" value={formData.price} onChange={e => setFormData({...formData, price: e.target.value})} required />
-                                        <input type="number" placeholder="熱量" className="w-full p-4 bg-gray-50 rounded-2xl outline-none" value={formData.calories} onChange={e => setFormData({...formData, calories: e.target.value})} />
+                                        <div className="space-y-1">
+                                            <label className="text-[10px] font-black text-gray-300 ml-2">金額</label>
+                                            <input type="number" placeholder="金額" className="w-full p-4 bg-gray-50 rounded-2xl outline-none" value={formData.price} onChange={e => setFormData({...formData, price: e.target.value})} required />
+                                        </div>
+                                        <div className="space-y-1">
+                                            <label className="text-[10px] font-black text-gray-300 ml-2">熱量 (AI 自動)</label>
+                                            <div className="relative">
+                                                <input type="number" placeholder="熱量" className="w-full p-4 bg-gray-100 rounded-2xl outline-none text-orange-500 font-bold" value={formData.calories} onChange={e => setFormData({...formData, calories: e.target.value})} />
+                                                {isAiCalculating && <div className="absolute right-3 top-4 text-xs animate-spin text-orange-400">⏳</div>}
+                                            </div>
+                                        </div>
                                     </div>
                                     <div className="space-y-3">
                                         <label className="text-xs font-black text-gray-300 ml-2">冰塊 / 甜度</label>
@@ -331,7 +460,16 @@
                                             {SWEETNESS_LEVELS.map(l => <button key={l} type="button" onClick={() => setFormData({...formData, sweetness: l})} className={`px-4 py-2 rounded-xl text-[10px] font-bold whitespace-nowrap border transition-colors ${formData.sweetness === l ? theme.primary + ' text-white border-transparent' : 'bg-white text-gray-400 border-gray-100'}`}>{l}</button>)}
                                         </div>
                                     </div>
-                                    <button type="submit" className={`w-full py-5 rounded-[2rem] text-white font-black shadow-lg ${theme.accent}`}>儲存紀錄</button>
+                                    <div className="flex gap-2 pt-4">
+                                        <button type="submit" className={`flex-1 py-5 rounded-[2rem] text-white font-black shadow-lg ${theme.accent}`}>儲存紀錄</button>
+                                        {logs.find(l => l.date === selectedDate && l.userId === activeUserId) && (
+                                            <button type="button" onClick={async () => {
+                                                const ex = logs.find(l => l.date === selectedDate && l.userId === activeUserId);
+                                                await window.fb.deleteDoc(window.fb.doc(window.fb.db, 'artifacts', window.fb.appId, 'public', 'data', 'logs', ex.id));
+                                                setIsModalOpen(false);
+                                            }} className="p-5 bg-red-50 text-red-500 rounded-[2rem] btn-active"><Icon name="Trash"/></button>
+                                        )}
+                                    </div>
                                 </form>
                             </div>
                         </div>
